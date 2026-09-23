@@ -1,0 +1,69 @@
+local BaseNpc = require(game.ServerStorage:WaitForChild("Npc"))
+local Bandit = setmetatable({}, BaseNpc)
+Bandit.__index = Bandit
+
+
+function Bandit.new(args)
+
+	args.Model = args.Model
+	args.Parent = args.Parent or workspace
+	
+	
+	local self = BaseNpc.new(args)
+	
+	self.CurrentWeapon = args.CurrentWeapon
+	self.Root = self.Model.HumanoidRootPart
+	self.ShootSound = self.Model.Humanoid.ShootSound
+	self.WalkAnim = self.Model.Humanoid.WalkAnim
+	self.WalkAnimTrack = self.Humanoid:LoadAnimation(self.WalkAnim)
+
+	self.debounce = false
+	
+	setmetatable(self, Bandit)
+	 
+	self.WeaponTypes = {
+		BlunderBuss = {
+			Damage = 20,
+			Debounce = 4,
+			ShootDistance = 25,
+		},
+		
+		Flintlock = {
+			Damage = 8,
+			Debounce = 3,
+			ShootDistance = 50,
+		},
+		
+		Musket = {
+			Damage = 10,
+			Debounce = 4,
+			ShootDistance = 60,
+		}
+	}	
+	
+	self.Area = self.WeaponTypes[self.CurrentWeapon].ShootDistance
+
+		coroutine.resume(self.MainThread)
+
+		return self
+end
+
+function Bandit:Attack(target)
+	if self.debounce then return end
+	if self.hasDied then return end
+	local targetRoot = target.HumanoidRootPart
+	
+	self.debounce = true
+	self.ShootSound:Play()
+	
+	target.Humanoid:TakeDamage(self.WeaponTypes[self.CurrentWeapon].Damage)
+	
+	task.spawn(function()
+		task.wait(self.WeaponTypes[self.CurrentWeapon].Debounce)
+		self.debounce = false
+	end)
+		
+		
+end
+
+return Bandit
