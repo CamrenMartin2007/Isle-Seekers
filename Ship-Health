@@ -1,0 +1,58 @@
+--Script that manages the ship's health
+
+--Services
+local collectionService = game:GetService("CollectionService")
+
+--Variables
+
+local ship = game.Workspace.shipParts.ship
+local seat = script.Parent
+local repairSound = game.SoundService.repairSound
+local shipModule = require(game.ReplicatedStorage.ModuleScripts.Ship)
+local itemData = require(game.ReplicatedStorage.ModuleScripts.itemData)
+local prompt = ship.resourceConsumer.ProximityPrompt
+local SoundModule = require(game.ReplicatedStorage.ModuleScripts.Sound)
+local shipHit = false
+
+--Main
+
+shipModule.updateGui()
+
+prompt.Triggered:Connect(function(player)
+	local character = player.Character
+	if character then
+		local characterChildren = character:GetChildren()
+		for i = 1, #characterChildren do
+			local item = characterChildren[i]
+			if item:IsA("Tool")  then
+				if (item:HasTag("Resource") or item.Parent:HasTag("Resource")) then
+					local itemName = item.Name
+					local healValue = itemData.repair[itemName]
+					
+					shipModule.shipHealed(healValue)
+					SoundModule.RangedSound(game.SoundService.repairSound, ship.PrimaryPart.Position, 3)
+					player.TitleStats["Ship Health Repaired"].Value += healValue
+					item:Destroy()
+				end
+			end
+			
+		end
+	end
+end)
+
+ship.hitBox.Touched:Connect(function(hit)
+	local itemHit = hit:FindFirstAncestor("Islands") 
+	if not itemHit then
+		itemHit = hit:FindFirstChild("spawnIslandModel")
+	end
+	if itemHit and shipHit == false then
+		shipModule.shipAttacked(10)
+		shipHit = true
+		SoundModule.RangedSound(game.SoundService.ShipHitsIsland, ship.PrimaryPart.Position, 2.5)
+		for player in game.Players:GetPlayers() do
+			player.TitleStats["Number Of Crashes"].Value += 1
+		end
+		task.wait(3)
+		shipHit = false
+	end
+end)
