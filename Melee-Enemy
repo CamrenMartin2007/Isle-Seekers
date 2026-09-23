@@ -1,0 +1,48 @@
+local BaseNpc = require(game.ServerStorage:WaitForChild("Npc"))
+local Skeleton = setmetatable({}, BaseNpc)
+Skeleton.__index = Skeleton
+
+
+function Skeleton.new(args)
+	
+	args.Model = args.Model
+	args.Parent = args.Parent or workspace
+	
+	local self = BaseNpc.new(args)
+	
+	self.debounce = false
+	setmetatable(self, Skeleton)
+	
+	self.BasicAttacks = {
+		{Damage = 5, Debounce = 1}
+	}
+	
+	
+	coroutine.resume(self.MainThread)
+	
+	return self
+end
+
+function Skeleton:Attack(target)
+	if self.debounce then return end
+	if self.hasDied then return end
+	local targetRoot = target.HumanoidRootPart
+	
+	local chosenAttack = self.BasicAttacks[math.random(#self.BasicAttacks)]
+	
+
+	if targetRoot and self:DistanceTo(targetRoot.Position) <= self.Area then
+		target.Humanoid:TakeDamage(chosenAttack.Damage)
+	end
+	
+	task.spawn(function()
+		self.debounce = true
+		task.wait(chosenAttack.Debounce)
+		self.debounce = false
+	end)
+	
+	
+	
+end
+
+return Skeleton
