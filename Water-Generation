@@ -1,0 +1,45 @@
+--Script to generate the water
+
+--Services
+local Players = game:GetService("Players")
+
+local tweenService = game:GetService("TweenService")
+
+
+--Variables
+local waterFolder = workspace.waterFolder
+local currentWater = 0
+local waterSize = 2047.5
+
+local terrain = workspace.Terrain
+local tween = tweenService:Create(terrain, TweenInfo.new(15), {WaterColor = Color3.fromRGB(16, 85, 51), WaterTransparency = 0.15, WaterReflectance = 0.5})
+
+--Functions
+local function spawnWater()
+	local waterName = "Water" .. currentWater
+	local water = waterFolder:FindFirstChild(waterName)
+	if water then
+		local waterClone = water:Clone()
+		waterClone.Parent = waterFolder
+		waterClone.Name = "Water" .. (currentWater + 1)
+		waterClone:PivotTo(water.PrimaryPart.CFrame + Vector3.new(waterSize, 0, 0))
+		currentWater = currentWater + 1
+	end
+end
+
+
+--Main Code
+
+while task.wait(3) do
+	for _, player in Players:GetPlayers() do
+		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			if player.Character.HumanoidRootPart.Position.X > (500 + (currentWater * waterSize)) then
+				spawnWater()
+			end
+			if player.Character.HumanoidRootPart.Position.X > 50000 then
+				tween:Play()
+			end
+		end
+	end
+	
+end
