@@ -1,0 +1,203 @@
+local userInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local tool = script.Parent
+local debounce = false
+
+local ammoMod = require(player.PlayerScripts.playerAmmo)
+local soundMod = require(game.ReplicatedStorage.ModuleScripts.Sound)
+
+local ammo = 5
+local maxAmmo = 5
+local totalAmmo = ammoMod.getMusketAmmo()
+local reloading = false
+
+local reloadThread
+
+local tool = script.Parent
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local Camera = workspace.Camera
+
+
+local ViewModel
+local equipped = false
+
+local loadedAnims = {
+	reloadStart = nil;
+	reloadMiddle = nil;
+	reloadEnd = nil;
+	shoot = nil;
+	walk = nil;
+	run = nil;
+}
+local function updateWalkAnimByVelocity()
+	if reloading then return end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
+
+	local speed = rootPart.Velocity.Magnitude
+
+	if speed > 17 or humanoid.FloorMaterial == Enum.Material.Air then
+		if not loadedAnims.run.IsPlaying then
+			loadedAnims.run:Play()
+		end
+	else
+		if loadedAnims.run.IsPlaying then 
+			loadedAnims.run:Stop()
+		end
+	end
+end
+
+-- reload function
+
+
+local function reload()
+	if reloading == false and ammo ~= maxAmmo and ammoMod.getMusketAmmo() > 0 then
+		reloading = true
+		local ammoUsed = maxAmmo - ammo
+		loadedAnims.reloadStart:Play()
+		task.wait(loadedAnims.reloadStart.Length)
+		for i = 1, ammoUsed  do
+			loadedAnims.reloadMiddle:Play()
+			tool.Sounds.Reload:Play()
+			task.wait(loadedAnims.reloadMiddle.Length)
+		end
+
+		if ammoMod.getMusketAmmo() > maxAmmo then
+			ammo = maxAmmo
+			ammoMod.removeAmmo("Musket", ammoUsed)
+		else
+			ammo = ammoMod.getMusketAmmo()
+			ammoMod.removeAmmo("Musket", ammo)
+		end
+
+		totalAmmo = ammoMod.getMusketAmmo()
+		player.PlayerGui.AmmoGui.Frame.TextLabel.Text = "Ammo: "..ammo.."/"..totalAmmo
+		reloading = false
+	end
+end
+
+
+-- shooting function
+tool.Activated:Connect(function()
+	if debounce == false and ammo > 0 and reloading == false then
+		debounce = true
+		ammo -= 1
+
+		tool.Shoot:FireServer(mouse.Hit.Position)
+		soundMod.RangedSound(tool.Sounds.Shoot, tool.Parent.HumanoidRootPart.position, 4)
+		loadedAnims.shoot:Play()
+		player.PlayerGui.AmmoGui.Frame.TextLabel.Text = "Ammo: "..ammo.."/"..totalAmmo
+		task.wait(.5)
+		debounce = false
+	elseif ammo <= 0 and reloading == false then
+		reloadThread = task.spawn(reload)
+	end
+end)
+
+--user input reload
+userInputService.InputBegan:Connect(function(inputObject, isTyping)
+	if isTyping then return end
+	if inputObject.KeyCode == Enum.KeyCode.R then
+		reloadThread = task.spawn(reload)
+	end
+end)
+local function hideMusketLocally(tool)
+	local musketModel = tool:FindFirstChild("Musket")
+	if not musketModel then return end
+
+	for _, obj in ipairs(musketModel:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			obj.LocalTransparencyModifier = 1
+		end
+	end
+end
+
+--Equip function
+tool.Equipped:Connect(function()
+	tool.equip:FireServer(true)
+	
+	player.PlayerGui.AmmoGui.Frame.TextLabel.Text = "Ammo: "..ammo.."/"..totalAmmo
+	player.PlayerGui.AmmoGui.Enabled = true
+	tool.Sounds.gunEquip:Play()
+	equipped = true
+	
+	local clone = game.ReplicatedStorage.ViewModels.Musket.Musket:Clone()
+	clone.Parent = Camera
+	
+	clone["Left Arm"].Color = character["Left Arm"].Color
+	clone["Right Arm"].Color = character["Right Arm"].Color
+
+	hideMusketLocally(tool)
+end)
+
+tool.Unequipped:Connect(function()
+	if reloading then
+		task.cancel(reloadThread)
+		tool.Sounds.Reload:Stop()
+		loadedAnims.reloadStart:Stop()
+		reloading = false
+
+		print("cancel reload")
+	end
+	mouse.Icon = "rbxassetid://"
+	player.PlayerGui.AmmoGui.Enabled = false
+	tool.equip:FireServer(false)
+	equipped = false
+	ViewModel = Camera.Musket
+	ViewModel:Destroy()
+	loadedAnims.reloadStart = nil
+	loadedAnims.reloadMiddle = nil
+	loadedAnims.reloadEnd = nil
+	loadedAnims.shoot = nil
+	loadedAnims.walk = nil
+	loadedAnims.run = nil
+end)
+
+local swaycf = CFrame.new()
+local lastCameracf = CFrame.new()
+
+RunService.RenderStepped:Connect(function()
+	if player.Character.Humanoid.Health <= 0 then
+		if Camera:FindFirstChild("Musket") ~= nil then
+			workspace.Camera.Musket:Destroy()
+		end
+	end
+	if equipped == true then
+		if Camera:FindFirstChild("Musket") ~= nil then
+			Camera.Musket:SetPrimaryPartCFrame(Camera.CFrame)
+			for i, v in pairs(Camera.Musket:GetChildren()) do
+				if v:IsA("BasePart") then
+					v.CanCollide = false
+				end
+			end
+			local rot = Camera.CFrame:ToObjectSpace(lastCameracf)
+			local x,y,z = rot:ToOrientation()
+			swaycf = swaycf:Lerp(CFrame.Angles(math.sin(x) * .7, math.sin(y) * .7, 0), 0.1)
+			lastCameracf = Camera.CFrame
+			Camera.Musket:SetPrimaryPartCFrame(Camera.CFrame * swaycf)
+			if loadedAnims.reloadStart == nil then
+				loadedAnims.reloadStart = Camera.Musket.AnimationController:LoadAnimation(Camera.Musket.Animations.ReloadStart)
+				loadedAnims.reloadMiddle = Camera.Musket.AnimationController:LoadAnimation(Camera.Musket.Animations.ReloadMiddle)
+				loadedAnims.reloadEnd = Camera.Musket.AnimationController:LoadAnimation(Camera.Musket.Animations.ReloadEnd)
+				loadedAnims.shoot = Camera.Musket.AnimationController:LoadAnimation(Camera.Musket.Animations.Shoot)
+				loadedAnims.run = Camera.Musket.AnimationController:LoadAnimation(Camera.Musket.Animations.Run)
+				--loadedAnims.run.Looped = true	
+
+			end
+			updateWalkAnimByVelocity()
+			if totalAmmo ~= ammoMod.getMusketAmmo() then
+				totalAmmo = ammoMod.getMusketAmmo()
+				player.PlayerGui.AmmoGui.Frame.TextLabel.Text = "Ammo: "..ammo.."/"..totalAmmo
+
+			end
+		end
+		hideMusketLocally(tool)
+		task.wait(.1)
+	end
+end)
