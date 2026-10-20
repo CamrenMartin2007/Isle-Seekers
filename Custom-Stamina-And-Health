@@ -1,0 +1,105 @@
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local AvatarAbilities = require("@rbx/AvatarAbilities")
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local playerGui = player.PlayerGui
+
+local stamina = 100
+local maxStamina = 100
+
+local health = 100
+local maxHealth = 100
+
+local speedDifference = 8
+local drainRate = 20
+local refereshRate = 10
+
+local sprintHeld = false
+local sprinting = false
+local exhausted = false
+
+
+
+
+local function isSwimming()
+	return humanoid:GetState() == Enum.HumanoidStateType.Swimming
+end
+
+local function sprint(active)
+	if exhausted then return end
+	if isSwimming() then return end
+	
+	humanoid.WalkSpeed = active and humanoid.WalkSpeed + speedDifference or humanoid.WalkSpeed - speedDifference
+	sprinting = active
+end
+
+local function onInput(input)
+	if input.KeyCode == Enum.KeyCode.LeftShift and input.UserInputType ~= Enum.UserInputType.Gamepad1 then
+		sprintHeld = input.UserInputState == Enum.UserInputState.Begin
+		sprint(sprintHeld)
+	end
+	if input.KeyCode == Enum.KeyCode.ButtonL3 then
+		sprintHeld = input.UserInputState == Enum.UserInputState.Begin
+		sprint(sprintHeld)
+	end
+end
+
+local function updateStaminaUI ()
+	playerGui.mainDisplay.StaminaBarFrame.StaminaBar.Size = UDim2.new(math.clamp(stamina / maxStamina, 0, 1), 0, 1, 0)
+	
+end
+
+local function updateHealth()
+	character:WaitForChild("Humanoid"):GetPropertyChangedSignal("Health"):Connect(function()
+		health = character.Humanoid.Health
+		playerGui.mainDisplay.HealthBarFrame.HealthBar.Size = UDim2.new(math.clamp(health / maxHealth, 0, 1), 0, 1, 0)
+	end)
+end
+
+userInputService.InputBegan:Connect(onInput)
+userInputService.InputEnded:Connect(onInput)
+
+
+
+runService.Heartbeat:Connect(function(deltaTime)
+	updateHealth()
+	if sprinting and character.Humanoid.MoveDirection.Magnitude > 0 and isSwimming() == false then
+		stamina = math.max(0, stamina - drainRate * deltaTime)
+		updateStaminaUI()
+		if stamina == 0  then
+			sprint(false)
+			exhausted = true
+		end
+	else
+		stamina = math.min(100, stamina + refereshRate * deltaTime)
+		if stamina >= 20 then
+			updateStaminaUI()
+			exhausted = false
+			if stamina >= 50 then
+				stamina = math.min(100, stamina + (refereshRate + 4) * deltaTime)
+			end
+		end
+
+	end
+	if sprinting == false then
+		if humanoid.WalkSpeed ~= 16 and player.PlayerGui.playerTalk.Enabled == false then
+			humanoid.WalkSpeed = 16
+		end
+	end
+	if character.Humanoid.Health < 30 then
+		playerGui.mainDisplay.HealthBarFrame.HealthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	else
+		playerGui.mainDisplay.HealthBarFrame.HealthBar.BackgroundColor3 = Color3.fromRGB(3, 192, 60) 
+	end
+end)
+
+local function updateChar()
+	character:WaitForChild("Humanoid"):GetPropertyChangedSignal("Health"):Connect(function()
+		health = character.Humanoid.Health
+		playerGui.mainDisplay.HealthBarFrame.HealthBar.Size = UDim2.new(math.clamp(health / maxHealth, 0, 1), 0, 1, 0)
+
+	end)
+end
