@@ -1,0 +1,185 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local root = character:WaitForChild("HumanoidRootPart")
+
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+
+local closestIslandBlip = script.Parent.Icons.IslandDot:Clone()
+closestIslandBlip.Name = "ClosestIsland"
+closestIslandBlip.Parent = script.Parent.Radar.Blips
+closestIslandBlip.Visible = true
+closestIslandType = "Island"
+
+
+function getCompassAngleToPart(rootPos, rootLookVector, partPos)
+	if partPos == nil then return 0 end
+	if rootPos == nil then return 0 end
+	local direction = (partPos - rootPos)
+	direction = Vector3.new(direction.X, 0, direction.Z) -- ignore vertical
+	if direction.Magnitude == 0 then return 0 end
+
+	direction = direction.Unit
+	local forward = Vector3.new(rootLookVector.X, 0, rootLookVector.Z).Unit
+
+	local dot = forward:Dot(direction)
+	local cross = forward:Cross(direction)
+	local angle = math.atan2(cross.Y, dot)
+	return math.deg(angle)
+end
+
+function fadeOutBlip(blip)
+	local tweenService = game:GetService("TweenService")
+	local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tween = tweenService:Create(blip, tweenInfo, {ImageTransparency = 1})
+	tween:Play()
+	task.wait(.5)
+	blip:Destroy()
+end
+
+local function findBlipIcon(type)
+	if type == "Outpost" then
+		return script.Parent.Icons.Outpost, "Outpost"
+	elseif type == "EndIsland" then
+		return script.Parent.Icons.EndIsland, "EndIsland"
+	elseif type == "BanditCamp" then
+		return script.Parent.Icons.Bandit, "BanditCamp"
+	elseif type == "Temple" then
+		return script.Parent.Icons.Temple, "Temple"
+	else
+		return script.Parent.Icons.IslandDot, "Island"
+	end
+end
+
+
+
+
+
+local closestIslandX = math.huge
+local closestIslandPos = nil
+local islandsInRange = {}
+local islandTags = {}
+task.spawn(function()
+	while task.wait(.2) do
+		local newClosestIslandX = math.huge
+		local newClosestIslandPos = nil
+		local newIslandsInRange = {}
+		local newIslandTags = {}
+		local type
+		for _, islands in ipairs(game.Workspace.scriptFolders.Islands:GetChildren()) do
+			
+			local Pos, xPos, tags = script.Parent.RemoteFunction:InvokeServer(islands)
+
+			if (root.Position - Pos).Magnitude <= 1000 then
+				table.insert(newIslandsInRange, Pos)
+				table.insert(newIslandTags, tags)
+			end
+
+			if xPos >= root.Position.X then
+				if xPos - root.Position.X < (newClosestIslandX - root.Position.X) then
+					newClosestIslandX = xPos
+					newClosestIslandPos = Pos
+					type = tags	
+				end
+			end
+
+			if table.find(newIslandsInRange, newClosestIslandPos) then
+
+				table.remove(newIslandsInRange, table.find(newIslandsInRange, newClosestIslandPos))
+				table.remove(newIslandTags, table.find(newIslandTags, tags))
+			end
+
+		end
+
+		if script.Parent.Radar.Blips:FindFirstChild(tostring(newClosestIslandPos)) then
+			script.Parent.Radar.Blips:FindFirstChild(tostring(newClosestIslandPos)):Destroy()
+		end
+		
+		closestIslandX = newClosestIslandX
+		closestIslandPos = newClosestIslandPos
+		islandsInRange = newIslandsInRange
+		islandTags = newIslandTags
+		
+		
+		local icon, typeOfIsland = findBlipIcon(type)
+		print(typeOfIsland)
+		
+		if closestIslandType ~= typeOfIsland then
+			
+			closestIslandBlip:Destroy()
+			closestIslandBlip = icon:Clone()
+			closestIslandBlip.Name = "ClosestIsland"
+			closestIslandBlip.Parent = script.Parent.Radar.Blips
+			closestIslandBlip.Value.Value = closestIslandPos
+			closestIslandBlip.Visible = true
+		end
+		
+		closestIslandType = typeOfIsland
+		
+	end
+end)
+task.wait(1)
+
+RunService.Stepped:Connect(function()
+	if not closestIslandPos then return end
+
+	local angle = getCompassAngleToPart(root.Position, workspace.CurrentCamera.CFrame.LookVector, closestIslandPos) + 90
+
+	local radius = (script.Parent.Radar.AbsoluteSize.X/2) - (closestIslandBlip.AbsoluteSize.X/2)
+	local rad = math.rad(angle)
+	local x = math.cos(rad) * radius
+	local y = -math.sin(rad) * radius
+	if (closestIslandPos - root.Position).Magnitude < 1000 then
+		local mult = (closestIslandPos - root.Position).magnitude / 1000
+
+		x *= mult
+		y *= mult
+
+	end
+	closestIslandBlip.Position = UDim2.new(0.5, x, 0.5, y)
+	
+	for _, blip in ipairs(script.Parent.Radar.Blips:GetChildren()) do
+		if blip then
+			local blipPos = blip:FindFirstChild("Value").Value
+			if blipPos then
+				if (blipPos - root.Position).Magnitude > 1000 and blip.Name ~= "ClosestIsland" then
+					task.spawn(fadeOutBlip,blip)
+				end 
+			end
+		end
+	end
+
+	for _, island in ipairs(islandsInRange) do
+		local blip
+		if script.Parent.Radar.Blips:FindFirstChild(tostring(island)) then
+			blip = script.Parent.Radar.Blips:FindFirstChild(tostring(island))
+		elseif (island - root.Position).Magnitude > 1000 then
+			continue
+		else
+			local index = table.find(islandsInRange, island)
+			local icon = findBlipIcon(islandTags[index])
+			blip = icon:Clone()
+			blip.Name = tostring(island)
+			blip.Parent = script.Parent.Radar.Blips
+			blip.Value.Value = island
+			blip.Visible = true
+		end
+		
+
+		local angle = getCompassAngleToPart(root.Position, workspace.CurrentCamera.CFrame.LookVector, island) + 90
+		local radius = (script.Parent.Radar.AbsoluteSize.X/2) - (blip.AbsoluteSize.X/2)
+		local rad = math.rad(angle)
+		local x = math.cos(rad) * radius
+		local y = -math.sin(rad) * radius
+		local mult = (island - root.Position).magnitude / 1000
+
+		x *= mult
+		y *= mult
+		blip.Position = UDim2.new(0.5, x, 0.5, y)
+	end
+end)
