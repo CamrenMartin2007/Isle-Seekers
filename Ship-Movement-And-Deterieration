@@ -1,0 +1,128 @@
+script.Parent.MaxSpeed = script.Parent.Settings.MaxSpeed.Value
+maxspeed = script.Parent.MaxSpeed
+script.Parent.BodyPosition.position = script.Parent.Position
+script.Parent.BodyGyro.cframe = script.Parent.CFrame
+
+local wheel = script.Parent.Parent.WheelModel.Wheel
+
+local ship = script.Parent.Parent
+local seat = script.Parent
+local SailingSound = seat.SailingSound
+local notPlaying = false
+value1 = 0
+local ship = game.Workspace.shipParts.ship
+local shipModule = require(game.ReplicatedStorage.ModuleScripts.Ship)
+local ServerNotification = game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("ServerAnnouncement")
+local canDrive = script.Parent.Settings.canDrive
+local messageProc = false
+
+local weld = script.Parent.Parent.WheelModel.Wheel.Weld
+
+
+local angle = 0
+
+local deceleration = script.Parent.Settings.Acceleration.Value * 0.5 -- Deceleration rate (tweak as needed)
+
+while true do
+	
+	task.wait()
+	if canDrive == false then
+		if value1 > 0 then
+			value1 = value1 - (deceleration * 3)
+		end
+	end
+	
+	
+	
+	if script.Parent.Throttle == 1 and canDrive.Value then
+		if value1 < maxspeed then
+			value1 = value1 + script.Parent.Settings.Acceleration.Value
+		end
+		script.Parent.Driving.Value = true
+		script.Parent.BodyVelocity.velocity = script.Parent.CFrame.LookVector * value1
+		script.Parent.Left.Value = false
+		script.Parent.Right.Value = false
+		
+	elseif script.Parent.Throttle == -1 and canDrive.Value then
+		if value1 > 0 then
+			value1 = value1 - (deceleration * 2)
+		end
+		script.Parent.BodyVelocity.velocity = script.Parent.CFrame.LookVector * value1
+
+	else 
+		script.Parent.Driving.Value = false
+		script.Parent.Left.Value = false
+		script.Parent.Right.Value = false
+
+		if value1 > 0 then
+			value1 = value1 - deceleration
+			
+		end
+
+		script.Parent.BodyVelocity.velocity = script.Parent.CFrame.LookVector * value1
+	end
+
+	if script.Parent.Steer == 1 and canDrive.Value then
+		script.Parent.BodyGyro.cframe = script.Parent.BodyGyro.cframe * CFrame.fromEulerAnglesXYZ(0, -script.Parent.Settings.TurnSpeed.Value, 0)
+		script.Parent.Driving.Value = true
+		script.Parent.Right.Value = true
+		script.Parent.Left.Value = false
+		angle += task.wait() * 5
+		weld.C0 = CFrame.new(0, 0, 0) * CFrame.Angles(angle, 0, 0)
+	elseif script.Parent.Steer == -1 and canDrive.Value then
+		script.Parent.BodyGyro.cframe = script.Parent.BodyGyro.cframe * CFrame.fromEulerAnglesXYZ(0, script.Parent.Settings.TurnSpeed.Value, 0)
+		script.Parent.Driving.Value = true
+		script.Parent.Left.Value = true
+		script.Parent.Right.Value = false
+		angle -= task.wait() * 5
+		weld.C0 = CFrame.new(0, 0, 0) * CFrame.Angles(angle, 0, 0)
+	end
+	
+	if not SailingSound then
+		SailingSound = seat:FindFirstChild("SailingSound")
+		if not SailingSound then
+			continue
+		end
+	end
+
+	local speed = seat.Velocity.Magnitude
+	local deteriorating = false
+
+	if speed > 1 then
+		if not notPlaying then
+			
+		else
+			SailingSound:Play()
+			notPlaying = false
+		end
+		SailingSound.Volume = math.clamp(speed / 100, 0.1, 1)
+	else
+		if notPlaying then
+			
+		else
+			SailingSound:Stop()
+			notPlaying = true
+		end
+	end
+	
+	if math.abs(script.Parent.Parent.PrimaryPart.Position.Z) > 2500 or script.Parent.Parent.PrimaryPart.Position.X < -1000 then
+		--out of bounds
+		game.Lighting.Atmosphere.Density = 1
+		shipModule.shipAttacked(10)
+		wait(1)
+		game.ReplicatedStorage.Events.deathByBorder.Value = true
+	end
+	if script.Parent.Parent.PrimaryPart.Position.X > 500 and messageProc == false then
+		--hasnt gave the starting message
+		messageProc = true
+		ServerNotification:FireAllClients("These tides are like no other, your ships health will deplete over time, find or buy supplies to stay afloat!")
+		task.spawn(function()
+			task.wait(10)
+			ServerNotification:FireAllClients("Follow the ships radar and find the find islands")
+			task.wait(10)
+			ServerNotification:FireAllClients("")
+		end)
+		
+	end
+end
+

@@ -1,0 +1,115 @@
+local ship = {}
+local remote = game.ReplicatedStorage.Events.EndGame
+local shipHealth = 20
+
+local shipDeteriorationSpeed = .75 -- this is per second
+
+local SoundFor75 = true
+local SoundFor50 = true
+local SoundFor25 = true
+local SoundFor10 = false
+
+local surfaceGui = game.Workspace.shipParts["ship"].Screen:WaitForChild("BlackScreen"):WaitForChild("SurfaceGui")
+local greenFrame = surfaceGui.MainGui.GreenFrame
+local percentage = surfaceGui.MainGui.Percentage
+local shipSound = script.Sound
+
+function ship.updateGui()
+	local healthPercent = shipHealth / 100
+	percentage.Text = math.floor(healthPercent * 100) .. "%"
+	greenFrame.Size = UDim2.new(math.clamp(healthPercent, 0, .945), 0, .87, 0)
+end
+
+local function Sunk()
+	print("Ship Sunk")
+	game.Workspace.shipParts.ship:Destroy()
+	for player in game.Players:GetPlayers() do
+		player.TitleStats["Number Of Sinks"].Value += 1
+	end
+	
+	remote:FireAllClients("Sunk")
+end
+
+function ship.shipAttacked(dmg)
+	shipHealth = shipHealth - dmg
+	ship.updateGui()
+	if shipHealth <= 0 then
+		Sunk()
+	end
+	if shipHealth <= 10 and SoundFor10 == false then
+		task.spawn(function()
+			shipSound.TimePosition = 19.20
+			shipSound:Play()
+			task.wait(8.6)
+			shipSound:Stop()
+		end)
+		SoundFor10 = true
+	elseif shipHealth <= 25 and SoundFor25 == false then
+		task.spawn(function()
+			shipSound.TimePosition = 9.5
+			shipSound:Play()
+			task.wait(9.66)
+			shipSound:Stop()
+		end)
+		SoundFor25 = true
+	elseif shipHealth <= 50 and SoundFor50 == false then
+		task.spawn(function()
+			shipSound.TimePosition = 27.80
+			shipSound:Play()
+			task.wait(7.53)
+			shipSound:Stop()
+		end)
+		SoundFor50 = true
+	elseif shipHealth <= 75 and SoundFor75 == false then
+		task.spawn(function()
+			shipSound.TimePosition = 0
+			shipSound:Play()
+			task.wait(9.5)
+			shipSound:Stop()
+		end)
+		SoundFor75 = true
+	end
+end
+
+function ship.shipHealed(amount)
+	if (shipHealth + amount) >= 100 then
+		shipHealth = 100
+		ship.updateGui()
+		SoundFor75 = false
+		SoundFor50 = false
+		SoundFor25 = false
+		SoundFor10 = false
+		return
+	end
+	if shipHealth > 10 and SoundFor10 == true then
+		SoundFor10 = false
+	end
+	
+	if shipHealth > 25 and SoundFor25 == true then
+		SoundFor25 = false
+	end
+	
+	if shipHealth > 50 and SoundFor50 == true then
+		SoundFor50 = false
+	end
+	
+	if shipHealth > 75 and SoundFor75 == true then
+		SoundFor75 = false
+	end
+	shipHealth += amount
+	ship.updateGui()
+end
+
+function ship.getShipHealth()
+	return shipHealth
+end
+
+function ship.getDeterioration()
+	return shipDeteriorationSpeed
+end
+function ship.ChangeDeterioration(numb)
+	shipDeteriorationSpeed = numb
+end
+
+
+return ship
