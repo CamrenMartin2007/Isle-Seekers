@@ -1,0 +1,74 @@
+local tool = script.Parent
+local dmg = 30
+
+
+local damageMod = require(game.ReplicatedStorage.ModuleScripts:WaitForChild("DamageScript"))
+tool.equip.OnServerEvent:connect(function(player, isEquip)
+	if isEquip then
+
+		local char = player.Character
+		if not char then return end
+
+		-- Prevent duplicates
+		if char:FindFirstChild("WorldGun") then
+			char.WorldGun:Destroy()
+		end
+		-- Clone world gun
+		local worldGun = game.ReplicatedStorage.ViewModels.Musket.MusketWorldGun:Clone()
+		worldGun.Name = "WorldGun"
+		worldGun.Parent = char
+
+		-- Weld to hand
+		local weld = Instance.new("Weld")
+		weld.Part0 = char:WaitForChild("Right Arm")
+		weld.Part1 = worldGun:WaitForChild("Handle")
+		weld.Parent = worldGun
+		weld.C0 = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(-90), math.rad(-90), 0)
+	else
+		local char = player.Character
+		local existing = char:FindFirstChild("WorldGun")
+		if existing then existing:Destroy() end
+	end
+end)
+
+
+script.Parent.Shoot.OnServerEvent:Connect(function(player, mousePosition)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = {player.Character, script.Parent.Handle}
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+	local raycastResult = workspace:Raycast(player.Character.Head.Position, (mousePosition - player.Character.Head.Position).Unit * 300, raycastParams)
+	
+	print(raycastResult)
+
+	if raycastResult then
+		local raycastInstance = raycastResult.Instance
+		local model = raycastInstance:FindFirstAncestorOfClass("Model")
+		if model then
+			if model:FindFirstChild("Humanoid") then
+				local humanoid = model.Humanoid
+				if raycastInstance.Name == "Head" then
+					if damageMod.canDamage(player, humanoid) then
+						humanoid:TakeDamage(dmg * 2)
+						player.TitleStats.HeadShots.Value += 1
+					end
+				else
+					if damageMod.canDamage(player, model) then
+						humanoid:TakeDamage(dmg )
+					end
+				end
+				if humanoid.Health <= 0 then
+					game.ReplicatedStorage.Events.playSoundForPlayer:FireClient(player, game.SoundService.EnemyDied)
+					player.TitleStats["Musket Kills"].Value += 1
+					if model:HasTag("Skeleton") then
+						player.TitleStats["Skeleton Kills"].Value += 1
+					elseif model:HasTag("Ghost") then
+						player.TitleStats["Ghost Kills"].Value += 1
+					elseif model:HasTag("Bandit") then
+						player.TitleStats["Bandit Kills"].Value += 1
+					end
+				end
+			end
+		end
+	end
+end)
