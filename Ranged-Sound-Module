@@ -1,0 +1,66 @@
+local TweenService = game:GetService("TweenService")
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+
+local maxDistance = 90
+local MIN_VOLUME = 0.1
+
+local PlayPassives = true
+
+local Sound = {}
+
+
+
+local function clampVolume(volume)
+	return math.max(volume, MIN_VOLUME) 
+end
+
+function Sound.RangedSound(sound, pos, maxVolume)
+	for _, player in Players:GetPlayers() do
+		local character = player.Character or player.CharacterAdded:Wait()
+		if character then
+			local distance = (character.HumanoidRootPart.Position - pos).Magnitude
+			if distance <= maxDistance then
+				
+				local volume = (1 - (distance / maxDistance)) * maxVolume
+				if volume < 0 then volume = 0 end
+				sound.Volume = clampVolume(volume, maxVolume)
+				sound:Play()
+				
+			end
+		end
+	end
+end
+
+function Sound.getAllSounds()
+	local sounds = {}
+	local function findSounds(obj)
+		if obj:IsA("Sound") then
+			table.insert(sounds, obj)
+		end
+		for i, child in obj:GetChildren() do
+			findSounds(child)
+		end
+	end
+	findSounds(workspace)
+	local soundService = game:GetService("SoundService")
+	findSounds(soundService)
+	local starterPack = game:GetService("StarterPack")
+	findSounds(starterPack)
+	return sounds
+end
+
+function Sound.StopPassiveMusic()
+	PlayPassives = false
+end
+
+function Sound.StartPassiveMusic()
+	PlayPassives = true
+end
+
+function Sound.CanPlayPassive()
+	return PlayPassives
+end
+
+
+return Sound
